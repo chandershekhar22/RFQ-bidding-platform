@@ -26,6 +26,15 @@ export function StatusBadge({ status }) {
   );
 }
 
+/** Marks an RFQ with British Auction turned off (fixed close time). */
+export function StandardBadge() {
+  return (
+    <span className="ml-2 inline-flex rounded px-1.5 py-0.5 align-middle text-[10px] font-semibold uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-slate-300">
+      Standard RFQ
+    </span>
+  );
+}
+
 /**
  * Time left until the auction closes (or starts). Flashes and shows the
  * extension when `closeAt` moves forward between polls.

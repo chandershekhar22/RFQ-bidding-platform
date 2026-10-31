@@ -20,6 +20,7 @@ function assertUuid(id, what) {
 
 function rfqConfig(rfq) {
   return {
+    british_auction_enabled: rfq.british_auction_enabled,
     trigger_window_minutes: rfq.trigger_window_minutes,
     extension_minutes: rfq.extension_minutes,
     extension_trigger: rfq.extension_trigger,
@@ -36,13 +37,15 @@ export async function createRfq(pool, rfq) {
     const { rows } = await pool.query(
       `INSERT INTO rfqs (reference, name, currency, bid_start_at, original_bid_close_at,
                          current_bid_close_at, forced_close_at, service_date,
-                         trigger_window_minutes, extension_minutes, extension_trigger)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                         british_auction_enabled, trigger_window_minutes, extension_minutes,
+                         extension_trigger)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
       [
         rfq.reference, rfq.name, rfq.currency, rfq.bid_start_at, rfq.original_bid_close_at,
         rfq.current_bid_close_at, rfq.forced_close_at, rfq.service_date,
-        rfq.trigger_window_minutes, rfq.extension_minutes, rfq.extension_trigger,
+        rfq.british_auction_enabled ?? true, rfq.trigger_window_minutes, rfq.extension_minutes,
+        rfq.extension_trigger,
       ]
     );
     const now = await dbNow(pool);

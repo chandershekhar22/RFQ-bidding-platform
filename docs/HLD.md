@@ -71,9 +71,10 @@ erDiagram
     timestamptz current_bid_close_at "moves on extension"
     timestamptz forced_close_at
     date service_date
-    int trigger_window_minutes "X"
-    int extension_minutes "Y"
-    text extension_trigger "BID_RECEIVED | ANY_RANK_CHANGE | L1_CHANGE"
+    bool british_auction_enabled "default true"
+    int trigger_window_minutes "X, NULL if off"
+    int extension_minutes "Y, NULL if off"
+    text extension_trigger "BID_RECEIVED | ANY_RANK_CHANGE | L1_CHANGE, NULL if off"
   }
   suppliers {
     uuid id PK
@@ -110,6 +111,9 @@ Key design decisions:
 
 - **Auction status is never stored.** It is derived from timestamps on every read
   (section 5), so no background job is needed to flip statuses.
+- **The British Auction option is a column (`british_auction_enabled`, default on).**
+  When it is off, X, Y and the trigger are NULL. The `rfq_auction_config` CHECK
+  constraint enforces that pairing, so a row can never be half-configured.
 - **`original_bid_close_at` and `current_bid_close_at` are separate columns.** This
   keeps the configured close time visible and lets the UI show how far the auction
   has been extended.
@@ -173,6 +177,13 @@ Bids on different RFQs do not block each other.
 - Bids are sorted by total, ascending. On a tie, the earlier submission (`seq`)
   ranks higher.
 - Rank 1 is **L1**, then L2, L3, and so on.
+
+**British Auction option**
+- Every RFQ has a British Auction option, on by default.
+- When it is **off** (a "standard RFQ"), the bid close time is fixed: no bid ever
+  extends it, and no extension events are written. The bid acceptance and ranking
+  rules are unchanged.
+- The rules below apply only when the option is **on**.
 
 **Trigger window**
 - A bid is in the trigger window if `bid_time ≥ current_bid_close_at − X minutes`.
@@ -259,3 +270,6 @@ Each simple choice has a scalable replacement:
    strictly lower than their own previous total.
 5. **Transit time is in days, and quote validity is a "valid until" date.** The PDF
    names these fields but does not give their units.
+6. **British Auction is an option on the create form** (a checkbox, on by default).
+   With it off, X, Y and the trigger are hidden and not stored. The forced close
+   time is still required, because the PDF lists it as a key field of the form.

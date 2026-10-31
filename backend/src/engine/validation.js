@@ -47,14 +47,20 @@ export function validateRfqInput(body = {}) {
 
   if (!isValidDate(body.service_date)) errors.push('service_date must be a date (YYYY-MM-DD).');
 
-  if (!isPositiveInt(body.trigger_window_minutes)) {
-    errors.push('trigger_window_minutes (X) must be a positive integer.');
-  }
-  if (!isPositiveInt(body.extension_minutes)) {
-    errors.push('extension_minutes (Y) must be a positive integer.');
-  }
-  if (!TRIGGERS.includes(body.extension_trigger)) {
-    errors.push(`extension_trigger must be one of ${TRIGGERS.join(', ')}.`);
+  const british = body.british_auction_enabled ?? true;
+  if (typeof british !== 'boolean') errors.push('british_auction_enabled must be true or false.');
+
+  // X / Y / trigger only apply to British Auctions; they are ignored (stored NULL) otherwise.
+  if (british === true) {
+    if (!isPositiveInt(body.trigger_window_minutes)) {
+      errors.push('trigger_window_minutes (X) must be a positive integer.');
+    }
+    if (!isPositiveInt(body.extension_minutes)) {
+      errors.push('extension_minutes (Y) must be a positive integer.');
+    }
+    if (!TRIGGERS.includes(body.extension_trigger)) {
+      errors.push(`extension_trigger must be one of ${TRIGGERS.join(', ')}.`);
+    }
   }
 
   if (errors.length) return { errors, value: null };
@@ -69,9 +75,10 @@ export function validateRfqInput(body = {}) {
       current_bid_close_at: close,
       forced_close_at: forced,
       service_date: body.service_date,
-      trigger_window_minutes: body.trigger_window_minutes,
-      extension_minutes: body.extension_minutes,
-      extension_trigger: body.extension_trigger,
+      british_auction_enabled: british,
+      trigger_window_minutes: british ? body.trigger_window_minutes : null,
+      extension_minutes: british ? body.extension_minutes : null,
+      extension_trigger: british ? body.extension_trigger : null,
     },
   };
 }

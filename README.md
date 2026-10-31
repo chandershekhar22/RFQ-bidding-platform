@@ -81,7 +81,7 @@ npm run migrate   # create tables (idempotent)
 npm run seed      # clear and recreate demo data (idempotent; also applies the schema)
 ```
 
-The seed creates five suppliers and one RFQ in each status:
+The seed creates five suppliers, one RFQ in each status, and one standard RFQ:
 
 | RFQ | Status | What it shows |
 |---|---|---|
@@ -90,6 +90,7 @@ The seed creates five suppliers and one RFQ in each status:
 | RFQ-2026-003 | Active, **demo** | Closes ~3 min after seeding. X = 2 min, Y = 1 min, L1-change trigger, 3 bids already placed |
 | RFQ-2026-004 | Active | Longer-running auction |
 | RFQ-2026-005 | Scheduled (EUR) | Starts tomorrow |
+| RFQ-2026-006 | Active, standard RFQ (INR) | British Auction off: the close time is fixed and bids never extend it |
 
 The historical bids are replayed through the real bid code, so their extensions
 and activity log come from the engine itself.
@@ -127,6 +128,7 @@ npm run test:integration  # Postgres tests on the rfq_test schema; skipped if DA
   - all three triggers, including "rank kept, so no change" and "first bid is an L1 change"
   - rolling and partial extensions, and the forced-close cap
   - derived statuses
+  - standard RFQs (British Auction off), which never extend
   - create and bid validation
   - exact money arithmetic
 - **Integration tests** ([tests/integration](backend/tests/integration)) cover:
@@ -135,6 +137,8 @@ npm run test:integration  # Postgres tests on the rfq_test schema; skipped if DA
   - a burst of concurrent bids, which extends as a strict chain and stops at the cap
   - rollback of rejected bids
   - a bid after the close being rejected while the forced close is still in the future
+  - a standard RFQ never extending, even with simultaneous L1 changes at the deadline
+  - the database rejecting a half-configured British Auction
   - the details payload
 
   These tests refuse to run unless the connection is on the test schema, so they
@@ -168,6 +172,8 @@ These are implemented exactly as listed in [HLD section 5](docs/HLD.md#5-auction
   supplier's own previous total.
 - **Ranking:** only each supplier's latest bid counts. Bids sort by total,
   ascending, and ties go to the earlier submission.
+- **British Auction option:** a checkbox on the create form, on by default. When it
+  is off, the close time is fixed and nothing below applies.
 - **Trigger window:** a bid is in the window if `now ≥ current_bid_close_at − X`.
   The configured trigger then decides whether to extend:
   - `BID_RECEIVED`: always.
@@ -207,6 +213,11 @@ These are implemented exactly as listed in [HLD section 5](docs/HLD.md#5-auction
 8. **Live updates by polling.** The details page polls every 3 s and the listing
    every 5 s. The HLD describes the scalable replacement (WebSockets or SSE over
    Postgres `LISTEN/NOTIFY`).
-9. **Supabase hardening.** Row-level security is enabled on all tables, with no
+9. **British Auction option.** The PDF asks to "create an RFQ with the British
+   Auction option enabled", so it is a checkbox, on by default. Unticking it makes a
+   standard RFQ with a fixed close time. X, Y and the trigger are hidden and stored
+   as NULL, and the listing labels these RFQs "Standard RFQ". The forced close time
+   is still required, because the PDF lists it as a key field.
+10. **Supabase hardening.** Row-level security is enabled on all tables, with no
    policies. This blocks Supabase's auto-generated public REST API. The backend
    connects as the table owner, so it is unaffected.

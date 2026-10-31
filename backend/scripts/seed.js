@@ -124,6 +124,23 @@ try {
   });
   await bid(active, 'Ocean Network Express', at(-30 * MIN), ['3100.00', '180.00', '260.00'], 18);
 
+  // ACTIVE standard RFQ (British Auction off): fixed close time, never extends.
+  const standard = await rfq({
+    reference: 'RFQ-2026-006',
+    name: 'Pune → Delhi, FTL 32ft (standard RFQ)',
+    currency: 'INR',
+    bid_start_at: at(-30 * MIN),
+    original_bid_close_at: at(90 * MIN),
+    forced_close_at: at(120 * MIN),
+    service_date: isoDate(at(4 * DAY)),
+    british_auction_enabled: false,
+    trigger_window_minutes: null,
+    extension_minutes: null,
+    extension_trigger: null,
+  });
+  await bid(standard, 'MSC', at(-20 * MIN), ['42000.00', '1500.00', '1500.00'], 2);
+  await bid(standard, 'Maersk', at(-10 * MIN), ['41000.00', '1800.00', '1200.00'], 2);
+
   // SCHEDULED: starts tomorrow.
   await rfq({
     reference: 'RFQ-2026-005',
@@ -138,7 +155,7 @@ try {
     extension_trigger: 'ANY_RANK_CHANGE',
   });
 
-  console.log(`Seeded ${SUPPLIERS.length} suppliers and 5 RFQs into "${pool.schema}".`);
+  console.log(`Seeded ${SUPPLIERS.length} suppliers and 6 RFQs into "${pool.schema}".`);
   console.log('Demo RFQ RFQ-2026-003 closes in ~3 minutes.');
 } finally {
   await pool.end();

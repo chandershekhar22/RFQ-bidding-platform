@@ -26,9 +26,12 @@ CREATE TABLE IF NOT EXISTS rfqs (
   current_bid_close_at    timestamptz NOT NULL,          -- moves forward on extensions
   forced_close_at         timestamptz NOT NULL,
   service_date            date NOT NULL,                 -- Pickup / Service Date
-  trigger_window_minutes  integer NOT NULL CHECK (trigger_window_minutes > 0), -- X
-  extension_minutes       integer NOT NULL CHECK (extension_minutes > 0),      -- Y
-  extension_trigger       text NOT NULL
+  -- British Auction option. When false the close time is fixed (never extended)
+  -- and the X / Y / trigger configuration is NULL.
+  british_auction_enabled boolean NOT NULL DEFAULT true,
+  trigger_window_minutes  integer CHECK (trigger_window_minutes > 0), -- X
+  extension_minutes       integer CHECK (extension_minutes > 0),      -- Y
+  extension_trigger       text
                           CHECK (extension_trigger IN ('BID_RECEIVED', 'ANY_RANK_CHANGE', 'L1_CHANGE')),
   created_at              timestamptz NOT NULL DEFAULT now(),
 
@@ -36,7 +39,12 @@ CREATE TABLE IF NOT EXISTS rfqs (
                                    AND original_bid_close_at < forced_close_at),
   -- PDF rule: the auction must never extend beyond the forced close time.
   CONSTRAINT rfq_close_within_cap CHECK (current_bid_close_at >= original_bid_close_at
-                                         AND current_bid_close_at <= forced_close_at)
+                                         AND current_bid_close_at <= forced_close_at),
+  CONSTRAINT rfq_auction_config CHECK (
+    (british_auction_enabled AND trigger_window_minutes IS NOT NULL
+       AND extension_minutes IS NOT NULL AND extension_trigger IS NOT NULL)
+    OR (NOT british_auction_enabled AND trigger_window_minutes IS NULL
+       AND extension_minutes IS NULL AND extension_trigger IS NULL))
 );
 
 -- Every quote ever submitted. Only each supplier's latest bid counts for ranking.
@@ -75,6 +83,19 @@ CREATE TABLE IF NOT EXISTS auction_events (
 );
 
 CREATE INDEX IF NOT EXISTS auction_events_rfq_idx ON auction_events (rfq_id, seq);
+
+-- Upgrade for databases created before the British Auction toggle existed.
+-- Idempotent; a no-op on a fresh database.
+ALTER TABLE rfqs ADD COLUMN IF NOT EXISTS british_auction_enabled boolean NOT NULL DEFAULT true;
+ALTER TABLE rfqs ALTER COLUMN trigger_window_minutes DROP NOT NULL;
+ALTER TABLE rfqs ALTER COLUMN extension_minutes DROP NOT NULL;
+ALTER TABLE rfqs ALTER COLUMN extension_trigger DROP NOT NULL;
+ALTER TABLE rfqs DROP CONSTRAINT IF EXISTS rfq_auction_config;
+ALTER TABLE rfqs ADD CONSTRAINT rfq_auction_config CHECK (
+  (british_auction_enabled AND trigger_window_minutes IS NOT NULL
+     AND extension_minutes IS NOT NULL AND extension_trigger IS NOT NULL)
+  OR (NOT british_auction_enabled AND trigger_window_minutes IS NULL
+     AND extension_minutes IS NULL AND extension_trigger IS NULL));
 
 -- Supabase exposes the public schema through its auto-generated REST API.
 -- RLS with no policies blocks that path; the backend connects as the table

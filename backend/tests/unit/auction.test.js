@@ -310,6 +310,45 @@ describe('evaluateBid', () => {
       expect(r.extension.reason).toMatch(/close time already equals forced close$/);
     });
 
+    describe('British Auction disabled (standard RFQ)', () => {
+      const standard = (overrides = {}) =>
+        rfqWith({
+          british_auction_enabled: false,
+          trigger_window_minutes: null,
+          extension_minutes: null,
+          extension_trigger: null,
+          ...overrides,
+        });
+
+      it('never extends, even for a new L1 seconds before close', () => {
+        const r = evaluateBid({ rfq: standard(), existingBids: bids, newBid: quote(MSC, '100'), now: T('17:59:59') });
+        expect(r.extension).toBeNull();
+        expect(r.after[0].supplier_id).toBe('msc');
+      });
+
+      it('never extends on the first-ever bid at the exact close time', () => {
+        const r = evaluateBid({ rfq: standard(), existingBids: [], newBid: quote(MAERSK, '100'), now: T('18:00:00') });
+        expect(r.extension).toBeNull();
+      });
+
+      it('still applies the bid acceptance rules', () => {
+        expectRejected(
+          () => evaluateBid({ rfq: standard(), existingBids: bids, newBid: quote(MAERSK, '900'), now: T('17:30:00') }),
+          409,
+          /lower than your previous bid/
+        );
+        expectRejected(
+          () => evaluateBid({ rfq: standard(), existingBids: [], newBid: quote(MAERSK, '100'), now: T('18:00:01') }),
+          409,
+          /closed/
+        );
+      });
+
+      it('ends as CLOSED at its fixed close time', () => {
+        expect(deriveStatus(standard(), T('18:00:01'))).toBe('CLOSED');
+      });
+    });
+
     it('a trigger that does not fire logs nothing, even when capped', () => {
       const rfq = rfqWith({ current_bid_close_at: T('18:30:00'), extension_trigger: 'L1_CHANGE' });
       const r = evaluateBid({ rfq, existingBids: bids, newBid: quote(MSC, '850'), now: T('18:29:00') });

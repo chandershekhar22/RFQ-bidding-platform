@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Card, Countdown, ErrorBanner, Field, StatusBadge, buttonClass, inputClass } from '../components/ui.jsx';
+import {
+  Card,
+  Countdown,
+  ErrorBanner,
+  Field,
+  StandardBadge,
+  StatusBadge,
+  buttonClass,
+  inputClass,
+} from '../components/ui.jsx';
 import { api } from '../lib/api.js';
 import {
   TRIGGER_LABELS,
@@ -39,6 +48,7 @@ export default function AuctionDetails() {
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-semibold text-slate-900">{rfq.reference}</h1>
             <StatusBadge status={status} />
+            {!config.british_auction_enabled && <StandardBadge />}
           </div>
           <p className="text-slate-600">{rfq.name}</p>
           <dl className="mt-3 grid grid-cols-2 gap-x-8 gap-y-1 text-sm sm:grid-cols-4">
@@ -74,9 +84,16 @@ export default function AuctionDetails() {
         <div className="space-y-5">
           <Card title="Auction configuration">
             <dl className="space-y-2 text-sm">
-              <Info label="Trigger window (X)" value={`${config.trigger_window_minutes} min`} />
-              <Info label="Extension duration (Y)" value={`${config.extension_minutes} min`} />
-              <Info label="Extension trigger" value={TRIGGER_LABELS[config.extension_trigger]} />
+              <Info label="British Auction" value={config.british_auction_enabled ? 'Enabled' : 'Off'} />
+              {config.british_auction_enabled ? (
+                <>
+                  <Info label="Trigger window (X)" value={`${config.trigger_window_minutes} min`} />
+                  <Info label="Extension duration (Y)" value={`${config.extension_minutes} min`} />
+                  <Info label="Extension trigger" value={TRIGGER_LABELS[config.extension_trigger]} />
+                </>
+              ) : (
+                <p className="text-slate-600">Standard RFQ: the bid close time is fixed and bids never extend it.</p>
+              )}
             </dl>
           </Card>
 

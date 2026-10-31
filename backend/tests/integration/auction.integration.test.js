@@ -49,7 +49,7 @@ describe.skipIf(!url)('bid transaction (Postgres)', () => {
   }
 
   // Times are relative to the database clock (ms offsets).
-  async function makeRfq({ close, forced, x, y, trigger }) {
+  async function makeRfq({ close, forced, x, y, trigger, british = true }) {
     const now = await dbNow();
     const { rfq } = await createRfq(pool, {
       reference: `T-${Math.random().toString(36).slice(2, 10)}`,
@@ -60,9 +60,10 @@ describe.skipIf(!url)('bid transaction (Postgres)', () => {
       current_bid_close_at: new Date(now + close),
       forced_close_at: new Date(now + forced),
       service_date: '2026-12-01',
-      trigger_window_minutes: x,
-      extension_minutes: y,
-      extension_trigger: trigger,
+      british_auction_enabled: british,
+      trigger_window_minutes: british ? x : null,
+      extension_minutes: british ? y : null,
+      extension_trigger: british ? trigger : null,
     });
     return rfq;
   }
@@ -168,6 +169,41 @@ describe.skipIf(!url)('bid transaction (Postgres)', () => {
       status: 409,
       message: 'Bidding is closed for this RFQ.',
     });
+  });
+
+  it('a standard RFQ (British Auction off) never extends, even with concurrent L1 changes at the deadline', async () => {
+    const rfq = await makeRfq({ close: 1 * MIN, forced: 30 * MIN, british: false });
+    expect(rfq.british_auction_enabled).toBe(false);
+
+    await bid(rfq.id, 'Maersk', '1000.00');
+    await Promise.all([bid(rfq.id, 'MSC', '900.00'), bid(rfq.id, 'CMA CGM', '800.00')]);
+
+    expect(await eventsOf(rfq.id, 'BID_SUBMITTED')).toHaveLength(3);
+    expect(await eventsOf(rfq.id, 'AUCTION_EXTENDED')).toHaveLength(0);
+    expect(await eventsOf(rfq.id, 'EXTENSION_CAPPED')).toHaveLength(0);
+    expect((await closeOf(rfq.id)).close).toBe(new Date(rfq.original_bid_close_at).getTime());
+
+    const d = await getRfqDetails(pool, rfq.id);
+    expect(d.config).toEqual({
+      british_auction_enabled: false,
+      trigger_window_minutes: null,
+      extension_minutes: null,
+      extension_trigger: null,
+    });
+  });
+
+  it('the database rejects an inconsistent British Auction configuration', async () => {
+    const insert = (british, x) =>
+      pool.query(
+        `INSERT INTO rfqs (reference, name, bid_start_at, original_bid_close_at, current_bid_close_at,
+                           forced_close_at, service_date, british_auction_enabled,
+                           trigger_window_minutes, extension_minutes, extension_trigger)
+         VALUES ($1, 'x', now(), now() + interval '1 hour', now() + interval '1 hour',
+                 now() + interval '2 hours', '2026-12-01', $2, $3, $3, $4)`,
+        [`BAD-${british}`, british, x, x ? 'BID_RECEIVED' : null]
+      );
+    await expect(insert(true, null)).rejects.toMatchObject({ constraint: 'rfq_auction_config' });
+    await expect(insert(false, 5)).rejects.toMatchObject({ constraint: 'rfq_auction_config' });
   });
 
   it('details return the ranking, all bids by price and the activity log', async () => {

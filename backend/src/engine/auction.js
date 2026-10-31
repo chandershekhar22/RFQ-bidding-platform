@@ -153,8 +153,9 @@ export function evaluateBid({ rfq, existingBids, newBid, now }) {
     { ...newBid, total_cents: totalCents, seq: Number.POSITIVE_INFINITY },
   ]);
 
+  // Standard RFQs (British Auction off) have a fixed close time: never extend.
   let extension = null;
-  if (isInTriggerWindow(rfq, now)) {
+  if (rfq.british_auction_enabled !== false && isInTriggerWindow(rfq, now)) {
     const trigger = rfq.extension_trigger;
     const { fired, reason } = evaluateTrigger(trigger, before, after, newBid.supplier_id);
     if (fired) {

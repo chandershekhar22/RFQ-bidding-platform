@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { Countdown, ErrorBanner, StatusBadge, buttonClass } from '../components/ui.jsx';
+import { Countdown, ErrorBanner, StandardBadge, StatusBadge, buttonClass } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
 import { deriveStatus, formatDateTime, formatMoney } from '../lib/format.js';
 import { usePolling, useServerNow } from '../lib/hooks.js';
@@ -14,7 +14,9 @@ export default function AuctionList() {
       <div className="flex items-end justify-between">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">British Auctions</h1>
-          <p className="text-sm text-slate-500">All RFQs. Times are in your local timezone.</p>
+          <p className="text-sm text-slate-500">
+            All RFQs. Standard RFQs (British Auction off) are labelled. Times are in your local timezone.
+          </p>
         </div>
         <Link to="/rfqs/new" className={buttonClass}>
           + New RFQ
@@ -63,6 +65,7 @@ export default function AuctionList() {
                     <Link to={`/rfqs/${rfq.id}`} className="font-medium text-indigo-600 hover:underline">
                       {rfq.reference}
                     </Link>
+                    {!rfq.british_auction_enabled && <StandardBadge />}
                     <div className="text-slate-600">{rfq.name}</div>
                   </td>
                   <td className="px-4 py-3 text-right">

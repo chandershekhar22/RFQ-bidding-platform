@@ -16,6 +16,7 @@ function defaults() {
     bid_close_at: toLocalInput(new Date(now + 65 * MIN)),
     forced_close_at: toLocalInput(new Date(now + 95 * MIN)),
     service_date: toDateInput(new Date(now + 7 * 24 * 60 * MIN)),
+    british_auction_enabled: true,
     trigger_window_minutes: '10',
     extension_minutes: '5',
     extension_trigger: 'BID_RECEIVED',
@@ -37,11 +38,13 @@ function validate(f) {
     if (close >= forced) errors.push('Forced bid close time must be later than bid close time.');
   }
   if (!f.service_date) errors.push('Pickup / service date is required.');
-  for (const [key, label] of [
-    ['trigger_window_minutes', 'Trigger window (X)'],
-    ['extension_minutes', 'Extension duration (Y)'],
-  ]) {
-    if (!/^[1-9]\d*$/.test(f[key])) errors.push(`${label} must be a positive whole number of minutes.`);
+  if (f.british_auction_enabled) {
+    for (const [key, label] of [
+      ['trigger_window_minutes', 'Trigger window (X)'],
+      ['extension_minutes', 'Extension duration (Y)'],
+    ]) {
+      if (!/^[1-9]\d*$/.test(f[key])) errors.push(`${label} must be a positive whole number of minutes.`);
+    }
   }
   return errors;
 }
@@ -61,6 +64,7 @@ export default function CreateRfq() {
     if (clientErrors.length) return;
 
     setSubmitting(true);
+    const british = form.british_auction_enabled;
     try {
       const { rfq } = await api.createRfq({
         ...form,
@@ -68,8 +72,9 @@ export default function CreateRfq() {
         bid_start_at: new Date(form.bid_start_at).toISOString(),
         bid_close_at: new Date(form.bid_close_at).toISOString(),
         forced_close_at: new Date(form.forced_close_at).toISOString(),
-        trigger_window_minutes: Number(form.trigger_window_minutes),
-        extension_minutes: Number(form.extension_minutes),
+        trigger_window_minutes: british ? Number(form.trigger_window_minutes) : undefined,
+        extension_minutes: british ? Number(form.extension_minutes) : undefined,
+        extension_trigger: british ? form.extension_trigger : undefined,
       });
       navigate(`/rfqs/${rfq.id}`);
     } catch (err) {
@@ -82,7 +87,7 @@ export default function CreateRfq() {
     <form onSubmit={onSubmit} className="mx-auto max-w-3xl space-y-5" noValidate>
       <div>
         <h1 className="text-xl font-semibold text-slate-900">Create RFQ</h1>
-        <p className="text-sm text-slate-500">British Auction is enabled for every RFQ. Times are in your local timezone.</p>
+        <p className="text-sm text-slate-500">Times are in your local timezone.</p>
       </div>
 
       {errors.length > 0 && <ErrorBanner message={errors[0]} details={errors} />}
@@ -122,34 +127,55 @@ export default function CreateRfq() {
         </div>
       </Card>
 
-      <Card title="British Auction configuration">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Trigger window (X minutes)" hint="Monitor bidding activity in the last X minutes before close.">
-            <input type="number" min="1" step="1" className={inputClass} value={form.trigger_window_minutes} onChange={set('trigger_window_minutes')} />
-          </Field>
-          <Field label="Extension duration (Y minutes)" hint="Minutes added to the close time when triggered.">
-            <input type="number" min="1" step="1" className={inputClass} value={form.extension_minutes} onChange={set('extension_minutes')} />
-          </Field>
-        </div>
-        <fieldset className="mt-4">
-          <legend className="text-sm font-medium text-slate-700">Extension trigger</legend>
-          <div className="mt-2 space-y-2">
-            {Object.entries(TRIGGER_LABELS).map(([value, label]) => (
-              <label key={value} className="flex items-center gap-2 text-sm text-slate-700">
-                <input
-                  type="radio"
-                  name="extension_trigger"
-                  value={value}
-                  checked={form.extension_trigger === value}
-                  onChange={set('extension_trigger')}
-                  className="text-indigo-600"
-                />
-                {label}
-              </label>
-            ))}
-          </div>
-        </fieldset>
+      <Card title="British Auction">
+        <label className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            checked={form.british_auction_enabled}
+            onChange={(e) => setForm((f) => ({ ...f, british_auction_enabled: e.target.checked }))}
+            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600"
+          />
+          <span>
+            <span className="block text-sm font-medium text-slate-800">Enable British Auction</span>
+            <span className="block text-xs text-slate-500">
+              {form.british_auction_enabled
+                ? 'Bidding activity near the close extends the auction, up to the forced close time.'
+                : 'Standard RFQ: the bid close time is fixed and is never extended.'}
+            </span>
+          </span>
+        </label>
       </Card>
+
+      {form.british_auction_enabled && (
+        <Card title="British Auction configuration">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Trigger window (X minutes)" hint="Monitor bidding activity in the last X minutes before close.">
+              <input type="number" min="1" step="1" className={inputClass} value={form.trigger_window_minutes} onChange={set('trigger_window_minutes')} />
+            </Field>
+            <Field label="Extension duration (Y minutes)" hint="Minutes added to the close time when triggered.">
+              <input type="number" min="1" step="1" className={inputClass} value={form.extension_minutes} onChange={set('extension_minutes')} />
+            </Field>
+          </div>
+          <fieldset className="mt-4">
+            <legend className="text-sm font-medium text-slate-700">Extension trigger</legend>
+            <div className="mt-2 space-y-2">
+              {Object.entries(TRIGGER_LABELS).map(([value, label]) => (
+                <label key={value} className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="radio"
+                    name="extension_trigger"
+                    value={value}
+                    checked={form.extension_trigger === value}
+                    onChange={set('extension_trigger')}
+                    className="text-indigo-600"
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        </Card>
+      )}
 
       <div className="flex justify-end gap-3">
         <button type="button" onClick={() => navigate('/')} className="rounded-md px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900">

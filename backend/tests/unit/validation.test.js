@@ -63,6 +63,43 @@ describe('validateRfqInput', () => {
     expect(errors).toHaveLength(2);
   });
 
+  it('enables British Auction by default', () => {
+    const { value } = validateRfqInput(validRfq());
+    expect(value.british_auction_enabled).toBe(true);
+    expect(value.extension_trigger).toBe('L1_CHANGE');
+  });
+
+  it('with British Auction off, X / Y / trigger are not required and are stored as null', () => {
+    const { errors, value } = validateRfqInput({
+      ...validRfq(),
+      british_auction_enabled: false,
+      trigger_window_minutes: undefined,
+      extension_minutes: 'junk',
+      extension_trigger: 'L1_CHANGE',
+    });
+    expect(errors).toEqual([]);
+    expect(value).toMatchObject({
+      british_auction_enabled: false,
+      trigger_window_minutes: null,
+      extension_minutes: null,
+      extension_trigger: null,
+    });
+  });
+
+  it('with British Auction off, the forced close must still be later than the close', () => {
+    const { errors } = validateRfqInput({
+      ...validRfq(),
+      british_auction_enabled: false,
+      forced_close_at: '2026-11-01T17:30:00Z',
+    });
+    expect(errors).toContain('Forced bid close time must be later than bid close time.');
+  });
+
+  it('rejects a non-boolean british_auction_enabled', () => {
+    const { errors } = validateRfqInput({ ...validRfq(), british_auction_enabled: 'no' });
+    expect(errors).toEqual(['british_auction_enabled must be true or false.']);
+  });
+
   it('collects every error at once', () => {
     expect(validateRfqInput({}).errors.length).toBeGreaterThanOrEqual(8);
   });
