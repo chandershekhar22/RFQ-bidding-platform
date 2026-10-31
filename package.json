@@ -1,0 +1,11 @@
+{
+  "name": "rfq-british-auction",
+  "private": true,
+  "scripts": {
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "test": "npm --prefix backend test",
+    "test:integration": "npm --prefix backend run test:integration",
+    "seed": "npm --prefix backend run seed"
+  }
+}
